@@ -1,7 +1,3 @@
-## $Source: /CVSROOT/yahoo/finance/lib/perl/PackageMasters/DBIx-DWIW/DWIW.pm,v $
-##
-## $Id: DWIW.pm,v 1.128 2007/02/17 04:47:30 jzawodn Exp $
-
 package DBIx::DWIW;
 
 use 5.005;
@@ -11,7 +7,7 @@ use Carp;
 use Sys::Hostname;  ## for reporting errors
 use Time::HiRes;    ## for fast timeouts
 
-our $VERSION = '0.48';
+our $VERSION = '0.49';
 our $SAFE    = 1;
 
 =head1 NAME
@@ -2590,6 +2586,7 @@ along the way:
   Toby Elliott (telliott@yahoo-inc.com)
   Keith C. Ivey (keith@smokefreedc.org)
   Brian Webb (brianw@yahoo-inc.com)
+  Steve Friedl (steve@unixwiz.net)
 
 Please direct comments, questions, etc to Jeremy for the time being.
 Thanks.
