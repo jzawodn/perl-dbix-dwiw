@@ -1510,8 +1510,8 @@ sub Hash($$@)
             {
                 $@ = "";
             }
+            $sth->finish;   ## (else get error about statement handle still active)
         }
-        $sth->finish;   ## (else get error about statement handle still active)
     }
     return $result ? $result : ();
 }
