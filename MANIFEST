@@ -1,5 +1,5 @@
 Changes
-DBIx/DWIW.pm
+lib/DBIx/DWIW.pm
 Makefile.PL
 examples/MyDBI.pm
 MANIFEST
