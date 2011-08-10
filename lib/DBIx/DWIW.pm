@@ -4,10 +4,10 @@ use 5.005;
 use strict;
 use DBI;
 use Carp;
-use Sys::Hostname;  ## for reporting errors
-use Time::HiRes;    ## for fast timeouts
+use Sys::Hostname;    ## for reporting errors
+use Time::HiRes;      ## for fast timeouts
 
-our $VERSION = '0.50';
+our $VERSION = '0.51';
 our $SAFE    = 1;
 
 =head1 NAME
@@ -224,57 +224,47 @@ my %CurrentConnections;
 
 use vars '$AUTOLOAD';
 
-sub AUTOLOAD
-{
-    my $method = $AUTOLOAD;
-    my $self   = shift;
+sub AUTOLOAD {
+	my $method = $AUTOLOAD;
+	my $self   = shift;
 
-    $method =~ s/.*:://;  ## strip the package name
+	$method =~ s/.*:://;    ## strip the package name
 
-    my $orig_method = $method;
+	my $orig_method = $method;
 
-    if ($self->{SAFE})
-    {
-        if (not $method =~ s/^dbi_//)
-        {
-            $@ = "undefined or unsafe method ($orig_method) called";
-            Carp::croak("$@");
-        }
-    }
+	if ($self->{SAFE}) {
+		if (not $method =~ s/^dbi_//) {
+			$@ = "undefined or unsafe method ($orig_method) called";
+			Carp::croak("$@");
+		}
+	}
 
-    if ($self->{DBH} and $self->{DBH}->can($method))
-    {
-        $self->{DBH}->$method(@_);
-    }
-    else
-    {
-        Carp::croak("undefined method ($orig_method) called");
-    }
+	if ($self->{DBH} and $self->{DBH}->can($method)) {
+		$self->{DBH}->$method(@_);
+	}
+	else {
+		Carp::croak("undefined method ($orig_method) called");
+	}
 }
 
 ##
 ## Allow the user to explicitly tell us if they want SAFE on or off.
 ##
 
-sub import
-{
-    my $class = shift;
+sub import {
+	my $class = shift;
 
-    while (my $arg = shift @_)
-    {
-        if ($arg eq 'unsafe')
-        {
-            $SAFE = 0;
-        }
-        elsif ($arg eq 'safe')
-        {
-            $SAFE = 1;
-        }
-        else
-        {
-            warn "unknown use argument: $arg";
-        }
-    }
+	while (my $arg = shift @_) {
+		if ($arg eq 'unsafe') {
+			$SAFE = 0;
+		}
+		elsif ($arg eq 'safe') {
+			$SAFE = 1;
+		}
+		else {
+			warn "unknown use argument: $arg";
+		}
+	}
 }
 
 ##
@@ -292,35 +282,38 @@ sub import
 ##     > 0    -- timeout, in seconds
 ##
 our $ConnectTimeoutOverride;
-our %ConnectTimeoutOverrideByHost; ## on a per-host basis
+our %ConnectTimeoutOverrideByHost;    ## on a per-host basis
 
 our $QueryTimeoutOverride;
-our %QueryTimeoutOverrideByHost; ## on a per-host basis
+our %QueryTimeoutOverrideByHost;      ## on a per-host basis
 
 ##
 ## Given two timeouts, return the one that's shorter. Note that a false
 ## value is the same as an infinite timeout, so 1 is shorter than 0.
 ##
-sub ShorterTimeout($$)
-{
-    my $a = shift;
-    my $b = shift;
+sub ShorterTimeout($$) {
+	my $a = shift;
+	my $b = shift;
 
-    if (not defined $a) {
-        return $b;
-    } elsif (not defined $b) {
-        return $a;
-    } elsif (not $a) {
-        return $b;
-    } elsif (not $b) {
-        return $a;
-    } elsif ($a < $b) {
-        return $a;
-    } else {
-        return $b;
-    }
+	if (not defined $a) {
+		return $b;
+	}
+	elsif (not defined $b) {
+		return $a;
+	}
+	elsif (not $a) {
+		return $b;
+	}
+	elsif (not $b) {
+		return $a;
+	}
+	elsif ($a < $b) {
+		return $a;
+	}
+	else {
+		return $b;
+	}
 }
-
 
 =item Connect()
 
@@ -472,401 +465,367 @@ for more information about what is and isn't preconfigured.
 
 =cut
 
-sub Connect($@)
-{
-    my $class = shift;
-    my $use_slave_hack = 0;
-    my $config_name;
+sub Connect($@) {
+	my $class          = shift;
+	my $use_slave_hack = 0;
+	my $config_name;
 
-    ##
-    ## If the user asks for a slave connection like this:
-    ##
-    ##   Connect('Slave', 'ConfigName')
-    ##
-    ## We'll try calling FindSlave() to find a slave server.
-    ##
-    if (@_ == 2 and ($_[0] eq 'Slave' or $_[0] eq 'ReadOnly'))
-    {
-        $use_slave_hack = 1;
-        shift;
-    }
+	##
+	## If the user asks for a slave connection like this:
+	##
+	##   Connect('Slave', 'ConfigName')
+	##
+	## We'll try calling FindSlave() to find a slave server.
+	##
+	if (@_ == 2 and ($_[0] eq 'Slave' or $_[0] eq 'ReadOnly')) {
+		$use_slave_hack = 1;
+		shift;
+	}
 
-    my %Options;
+	my %Options;
 
-    ##
-    ## Handle $self->Connect('SomeConfig')
-    ##
-    if (@_ % 2 != 0)
-    {
-        $config_name = shift;
-        if (my $config = $class->LocalConfig($config_name))
-        {
-            %Options = (%{$config}, @_);
-        }
-        else
-        {
-            die "unknown local config \"$config_name\", or bad number of arguments to Connect: " . join(", ", $config_name, @_);
-        }
-    }
-    else
-    {
-        %Options = @_;
-    }
+	##
+	## Handle $self->Connect('SomeConfig')
+	##
+	if (@_ % 2 != 0) {
+		$config_name = shift;
+		if (my $config = $class->LocalConfig($config_name)) {
+			%Options = (%{$config}, @_);
+		}
+		else {
+			die
+"unknown local config \"$config_name\", or bad number of arguments to Connect: "
+			  . join(", ", $config_name, @_);
+		}
+	}
+	else {
+		%Options = @_;
+	}
 
-    my $UseSlave = delete($Options{UseSlave});
+	my $UseSlave = delete($Options{UseSlave});
 
-    if ($use_slave_hack)
-    {
-        $UseSlave = 1;
-    }
+	if ($use_slave_hack) {
+		$UseSlave = 1;
+	}
 
-    ## Find a slave to use, if we can.
+	## Find a slave to use, if we can.
 
-    if ($UseSlave)
-    {
-        if ($class->can('FindSlave'))
-        {
-            %Options = $class->FindSlave(%Options);
-        }
-        else
-        {
-            warn "$class doesn't know how to find slaves";
-        }
-    }
+	if ($UseSlave) {
+		if ($class->can('FindSlave')) {
+			%Options = $class->FindSlave(%Options);
+		}
+		else {
+			warn "$class doesn't know how to find slaves";
+		}
+	}
 
-    ##
-    ## Fetch the arguments.
-    ##
-    my $DB       =  delete($Options{DB})   || $class->DefaultDB();
-    my $User     =  delete($Options{User}) || $class->DefaultUser($DB);
-    my $Password =  delete($Options{Pass});
-    my $Port     =  delete($Options{Port}) || $class->DefaultPort($DB);
-    my $Unique   =  delete($Options{Unique});
-    my $Retry    = !delete($Options{NoRetry});
-    my $Quiet    =  delete($Options{Quiet});
-    my $NoAbort  =  delete($Options{NoAbort});
-    my $ConnectTimeout =  delete($Options{Timeout});
-    my $QueryTimeout   =  delete($Options{QueryTimeout});
-    my $Verbose  =  delete($Options{Verbose}); # undef = no change
-                                               # true  = on
-                                               # false = off
-    ## allow empty passwords
-    $Password = $class->DefaultPass($DB) if not defined $Password;
+	##
+	## Fetch the arguments.
+	##
+	my $DB   = delete($Options{DB})   || $class->DefaultDB();
+	my $User = delete($Options{User}) || $class->DefaultUser($DB);
+	my $Password       = delete($Options{Pass});
+	my $Port           = delete($Options{Port}) || $class->DefaultPort($DB);
+	my $Unique         = delete($Options{Unique});
+	my $Retry          = !delete($Options{NoRetry});
+	my $Quiet          = delete($Options{Quiet});
+	my $NoAbort        = delete($Options{NoAbort});
+	my $ConnectTimeout = delete($Options{Timeout});
+	my $QueryTimeout   = delete($Options{QueryTimeout});
+	my $Verbose = delete($Options{Verbose});    # undef = no change
+	                                            # true  = on
+	                                            # false = off
+	## allow empty passwords
+	$Password = $class->DefaultPass($DB) if not defined $Password;
 
-    $config_name = $DB unless defined $config_name;
+	$config_name = $DB unless defined $config_name;
 
-    ## respect the DB_DOWN hack
-    $Quiet = 1 if $ENV{DB_DOWN};
+	## respect the DB_DOWN hack
+	$Quiet = 1 if $ENV{DB_DOWN};
 
-    ##
-    ## Host parameter is special -- we want to recognize
-    ##    Host => undef
-    ## as being "no host", so we have to check for its existence in the hash,
-    ## and default to nothing ("") if it exists but is empty.
-    ##
-    my $Host;
-    if (exists $Options{Host})
-    {
-        $Host =  delete($Options{Host}) || "";
-    }
-    else
-    {
-        $Host = $class->DefaultHost($DB) || "";
-    }
+	##
+	## Host parameter is special -- we want to recognize
+	##    Host => undef
+	## as being "no host", so we have to check for its existence in the hash,
+	## and default to nothing ("") if it exists but is empty.
+	##
+	my $Host;
+	if (exists $Options{Host}) {
+		$Host = delete($Options{Host}) || "";
+	}
+	else {
+		$Host = $class->DefaultHost($DB) || "";
+	}
 
-    if (not $DB)
-    {
-        $@ = "missing DB parameter to Connect";
-        die $@ unless $NoAbort;
-        return ();
-    }
+	if (not $DB) {
+		$@ = "missing DB parameter to Connect";
+		die $@ unless $NoAbort;
+		return ();
+	}
 
-    if (not $User)
-    {
-        $@ = "missing User parameter to Connect";
-        die $@ unless $NoAbort;
-        return ();
-    }
+	if (not $User) {
+		$@ = "missing User parameter to Connect";
+		die $@ unless $NoAbort;
+		return ();
+	}
 
-    if (not defined $Password)
-    {
-        $@ = "missing Pass parameter to Connect";
-        die $@ unless $NoAbort;
-        return ();
-    }
+	if (not defined $Password) {
+		$@ = "missing Pass parameter to Connect";
+		die $@ unless $NoAbort;
+		return ();
+	}
 
-#      if (%Options)
-#      {
-#          my $keys = join(', ', keys %Options);
-#          $@ = "bad parameters [$keys] to Connect()";
-#          die $@ unless $NoAbort;
-#          return ();
-#      }
+	#      if (%Options)
+	#      {
+	#          my $keys = join(', ', keys %Options);
+	#          $@ = "bad parameters [$keys] to Connect()";
+	#          die $@ unless $NoAbort;
+	#          return ();
+	#      }
 
-    my $myhost = hostname();
-    my $desc;
+	my $myhost = hostname();
+	my $desc;
 
-    if (defined $Host)
-    {
-        $desc = "connection to $Host\'s MySQL server from $myhost";
-    }
-    else
-    {
-        $desc = "local connection to MySQL server on $myhost";
-    }
+	if (defined $Host) {
+		$desc = "connection to $Host\'s MySQL server from $myhost";
+	}
+	else {
+		$desc = "local connection to MySQL server on $myhost";
+	}
 
-    ## we're going to build the dsn up incrementally...
-    my $dsn;
+	## we're going to build the dsn up incrementally...
+	my $dsn;
 
-    ## proxy details
-    ##
-    ## This can be factored together once I'm sure it is working.
+	## proxy details
+	##
+	## This can be factored together once I'm sure it is working.
 
-    # DBI:Proxy:cipher=Crypt::DES;key=$key;hostname=$proxy_host;port=8192;dsn=DBI:mysql:$db:$host
+# DBI:Proxy:cipher=Crypt::DES;key=$key;hostname=$proxy_host;port=8192;dsn=DBI:mysql:$db:$host
 
-    if ($Options{Proxy})
-    {
-        if (not ($Options{ProxyHost} and $Options{ProxyPort}))
-        {
-            $@ = "ProxyHost and ProxyPort are required when Proxy is set";
-            die $@ unless $NoAbort;
-            return ();
-        }
+	if ($Options{Proxy}) {
+		if (not($Options{ProxyHost} and $Options{ProxyPort})) {
+			$@ = "ProxyHost and ProxyPort are required when Proxy is set";
+			die $@ unless $NoAbort;
+			return ();
+		}
 
-        $dsn = "DBI:Proxy";
+		$dsn = "DBI:Proxy";
 
-        my $proxy_port = $Options{ProxyPort};
-        my $proxy_host = $Options{ProxyHost};
+		my $proxy_port = $Options{ProxyPort};
+		my $proxy_host = $Options{ProxyHost};
 
-        if ($Options{ProxyCipher} and $Options{ProxyKey})
-        {
-            my $proxy_cipher = $Options{ProxyCipher};
-            my $proxy_key    = $Options{ProxyKey};
+		if ($Options{ProxyCipher} and $Options{ProxyKey}) {
+			my $proxy_cipher = $Options{ProxyCipher};
+			my $proxy_key    = $Options{ProxyKey};
 
-            $dsn .= ":cipher=$proxy_cipher;key=$proxy_key";
-        }
+			$dsn .= ":cipher=$proxy_cipher;key=$proxy_key";
+		}
 
-        $dsn .= ";hostname=$proxy_host;port=$proxy_port";
-        $dsn .= ";dsn=DBI:mysql:$DB:$Host;mysql_client_found_rows=1";
-    }
-    else
-    {
-        if ($Port)
-        {
-            $dsn .= "DBI:mysql:$DB:$Host;port=$Port;mysql_client_found_rows=1";
-        }
-        else
-        {
-            $dsn .= "DBI:mysql:$DB:$Host;mysql_client_found_rows=1";
-        }
-    }
+		$dsn .= ";hostname=$proxy_host;port=$proxy_port";
+		$dsn .= ";dsn=DBI:mysql:$DB:$Host;mysql_client_found_rows=1";
+	}
+	else {
+		if ($Port) {
+			$dsn .= "DBI:mysql:$DB:$Host;port=$Port;mysql_client_found_rows=1";
+		}
+		else {
+			$dsn .= "DBI:mysql:$DB:$Host;mysql_client_found_rows=1";
+		}
+	}
 
-    warn "DSN: $dsn\n" if $ENV{DEBUG};
+	warn "DSN: $dsn\n" if $ENV{DEBUG};
 
-    ##
-    ## If we're not looking for a unique connection, and we already have
-    ## one with the same options, use it.
-    ##
-    if (not $Unique)
-    {
-        if (my $db = $CurrentConnections{$dsn . $class})
-        {
-            if (defined $Verbose)
-            {
-                $db->{VERBOSE} = $Verbose;
-            }
+	##
+	## If we're not looking for a unique connection, and we already have
+	## one with the same options, use it.
+	##
+	if (not $Unique) {
+		if (my $db = $CurrentConnections{ $dsn . $class }) {
+			if (defined $Verbose) {
+				$db->{VERBOSE} = $Verbose;
+			}
 
-            return $db;
-        }
-    }
+			return $db;
+		}
+	}
 
+	if ($Host and my $Override = $ConnectTimeoutOverrideByHost{$Host}) {
+		$ConnectTimeout = ShorterTimeout($ConnectTimeout, $Override);
+	}
+	elsif ($ConnectTimeoutOverride) {
+		$ConnectTimeout =
+		  ShorterTimeout($ConnectTimeout, $ConnectTimeoutOverride);
+	}
 
-    if ($Host and my $Override = $ConnectTimeoutOverrideByHost{$Host})
-    {
-        $ConnectTimeout = ShorterTimeout($ConnectTimeout, $Override);
-    }
-    elsif ($ConnectTimeoutOverride)
-    {
-        $ConnectTimeout = ShorterTimeout($ConnectTimeout, $ConnectTimeoutOverride);
-    }
+	if ($Host and my $Override = $QueryTimeoutOverrideByHost{$Host}) {
+		$QueryTimeout = ShorterTimeout($QueryTimeout, $Override);
+	}
+	elsif ($QueryTimeoutOverride) {
+		$QueryTimeout = ShorterTimeout($QueryTimeout, $QueryTimeoutOverride);
+	}
 
-    if ($Host and my $Override = $QueryTimeoutOverrideByHost{$Host})
-    {
-        $QueryTimeout = ShorterTimeout($QueryTimeout, $Override);
-    }
-    elsif ($QueryTimeoutOverride)
-    {
-        $QueryTimeout = ShorterTimeout($QueryTimeout, $QueryTimeoutOverride);
-    }
+	my $self = {
+		## Connection info
+		DB              => $DB,
+		DBH             => undef,
+		DESC            => $desc,
+		HOST            => $Host,
+		PASS            => $Password,
+		QUIET           => $Quiet,
+		RETRY           => 1,
+		UNIQUE          => $Unique,
+		USER            => $User,
+		PORT            => $Port,
+		VERBOSE         => $Verbose,
+		SAFE            => $SAFE,
+		DSN             => $dsn,
+		UNIQUE_KEY      => $dsn . $class,
+		CONNECT_TIMEOUT => $ConnectTimeout,
+		QUERY_TIMEOUT   => $QueryTimeout,
+		RetryCount      => 0,
 
-    my $self = {
-                ## Connection info
-                DB          => $DB,
-                DBH         => undef,
-                DESC        => $desc,
-                HOST        => $Host,
-                PASS        => $Password,
-                QUIET       => $Quiet,
-                RETRY       => 1,
-                UNIQUE      => $Unique,
-                USER        => $User,
-                PORT        => $Port,
-                VERBOSE     => $Verbose,
-                SAFE        => $SAFE,
-                DSN         => $dsn,
-                UNIQUE_KEY  => $dsn . $class,
-                CONNECT_TIMEOUT => $ConnectTimeout,
-                QUERY_TIMEOUT   => $QueryTimeout,
-                RetryCount  => 0,
+		## Transaction info
+		BeginCount => 0,       ## ++ on Begin, -- on Commit, reset Rollback
+		TrxRunning => 0,       ## true after a Begin
+		TrxName    => undef,
+	};
 
-                ## Transaction info
-                BeginCount  => 0,  ## ++ on Begin, -- on Commit, reset Rollback
-                TrxRunning  => 0,  ## true after a Begin
-                TrxName     => undef,
-               };
+	$self = bless $self, $class;
 
-    $self = bless $self, $class;
+	if ($ENV{DBIxDWIW_VERBOSE}) {
+		$self->{VERBOSE} = 1;
+	}
 
-    if ($ENV{DBIxDWIW_VERBOSE}) {
-        $self->{VERBOSE} = 1;
-    }
+	if (my $routine = $self->can("PreConnectHook")) {
+		$routine->($self);
+	}
 
-    if (my $routine = $self->can("PreConnectHook")) {
-        $routine->($self);
-    }
+	if ($ENV{DBIxDWIW_CONNECTION_DEBUG}) {
+		require Data::Dumper;
 
-    if ($ENV{DBIxDWIW_CONNECTION_DEBUG}) {
-        require Data::Dumper;
+		local ($Data::Dumper::Indent) = 2;
+		local ($Data::Dumper::Purity) = 0;
+		local ($Data::Dumper::Terse)  = 1;
 
-        local($Data::Dumper::Indent) = 2;
-        local($Data::Dumper::Purity) = 0;
-        local($Data::Dumper::Terse)  = 1;
+		Carp::cluck(
+			"DBIx::DWIW Connecting:\n" . Data::Dumper::Dumper($self) . "\n\t");
+	}
 
-        Carp::cluck("DBIx::DWIW Connecting:\n" . Data::Dumper::Dumper($self) . "\n\t");
-    }
+	my $dbh;
+	my $done = 0;
 
-    my $dbh;
-    my $done = 0;
+	while (not $done) {
+		local ($SIG{PIPE}) = 'IGNORE';
 
-    while (not $done)
-    {
-        local($SIG{PIPE}) = 'IGNORE';
+		## If the user wants a timeout, we need to set that up and do
+		## it here.  This looks complex, but it's really a no-op
+		## unless the user wants it.
+		##
+		## Notice that if a timeout is hit, then the RetryWait() stuff
+		## will never have a chance to run.  That's good, but we need
+		## to make sure that users expect that.
 
-        ## If the user wants a timeout, we need to set that up and do
-        ## it here.  This looks complex, but it's really a no-op
-        ## unless the user wants it.
-        ##
-        ## Notice that if a timeout is hit, then the RetryWait() stuff
-        ## will never have a chance to run.  That's good, but we need
-        ## to make sure that users expect that.
+		if ($self->{CONNECT_TIMEOUT}) {
+			eval {
+				local $SIG{ALRM} = sub { die "alarm\n" };
 
-        if ($self->{CONNECT_TIMEOUT})
-        {
-            eval
-            {
-                local $SIG{ALRM} = sub { die "alarm\n" };
+				Time::HiRes::alarm($self->{CONNECT_TIMEOUT});
+				$dbh =
+				  DBI->connect($dsn, $User, $Password, { PrintError => 0 });
+				Time::HiRes::alarm(0);
+			};
+			if ($@ eq "alarm\n") {
+				if (my $routine = $self->can("ConnectTimeoutHook")) {
+					$routine->($self);
+				}
 
-                Time::HiRes::alarm($self->{CONNECT_TIMEOUT});
-                $dbh = DBI->connect($dsn, $User, $Password, { PrintError => 0 });
-                Time::HiRes::alarm(0);
-            };
-            if ($@ eq "alarm\n")
-            {
-                if (my $routine = $self->can("ConnectTimeoutHook")) {
-                    $routine->($self);
-                }
+				my $timeout = $self->{CONNECT_TIMEOUT};
+				undef $self;    # this fires the DESTROY, which sets $@, so must
+				                # do before setting $@ below.
 
-                my $timeout = $self->{CONNECT_TIMEOUT};
-                undef $self; # this fires the DESTROY, which sets $@, so must
-                             # do before setting $@ below.
+				$@ = "connection timeout ($timeout sec passed)";
+				return ();
+			}
+		}
+		else {
+			$dbh = DBI->connect($dsn, $User, $Password, { PrintError => 0 });
+		}
 
-                $@ = "connection timeout ($timeout sec passed)";
-                return ();
-            }
-        }
-        else
-        {
-            $dbh = DBI->connect($dsn, $User, $Password, { PrintError => 0 });
-        }
+		if (not ref $dbh) {
+			if (not $DBI::errstr and $@) {
+				##
+				## Must be a problem with loading DBD or something --
+				## a *perl* problem as opposed to a network/credential
+				## problem. If we clear $Retry now, we'll ensure to drop
+				## into the die 'else' clause below.
+				##
+				$Retry = 0;
+			}
 
-        if (not ref $dbh)
-        {
-            if (not $DBI::errstr and $@)
-            {
-                ##
-                ## Must be a problem with loading DBD or something --
-                ## a *perl* problem as opposed to a network/credential
-                ## problem. If we clear $Retry now, we'll ensure to drop
-                ## into the die 'else' clause below.
-                ##
-                $Retry = 0;
-            }
+			if (
+				$Retry
+				and (  $DBI::errstr =~ m/can\'t connect/i
+					or $DBI::errstr =~ m/Too many connections/i
+					or $DBI::errstr =~ m/Lost connection to MySQL server/i)
+				and $self->RetryWait($DBI::errstr)
+			  )
+			{
+				$done = 0;    ## Heh.
+			}
+			else {
+				my $ERROR = ($DBI::errstr || $@ || "internal error");
 
-            if ($Retry
-                and
-                ($DBI::errstr =~ m/can\'t connect/i
-                 or
-                 $DBI::errstr =~ m/Too many connections/i
-                 or
-                 $DBI::errstr =~ m/Lost connection to MySQL server/i)
-                and
-                $self->RetryWait($DBI::errstr))
-            {
-                $done = 0; ## Heh.
-            }
-            else
-            {
-                my $ERROR = ($DBI::errstr || $@ || "internal error");
+				##
+				## If DBI::ProxyServer is being used and the target mmysql
+				## server refuses the connection (wrong password, trying to
+				## access a db that they've not been given permission for,
+				## etc.) DBI::ProxyServer just reports "Unexpected EOF from
+				## server". Let's give the user a hint as to what that
+				## might mean.
+				##
+				if ($ERROR =~
+m/^Cannot log in to DBI::ProxyServer: Unexpected EOF from server/
+				  )
+				{
+					$ERROR =
+"Cannot log in via DBI::ProxyServer: Unexpected EOF from server (check user's MySQL credentials and privileges)";
+				}
+				if (not $NoAbort) {
+					die $ERROR;
+				}
+				elsif (not $Quiet) {
+					warn $ERROR;
+				}
 
-                ##
-                ## If DBI::ProxyServer is being used and the target mmysql
-                ## server refuses the connection (wrong password, trying to
-                ## access a db that they've not been given permission for,
-                ## etc.) DBI::ProxyServer just reports "Unexpected EOF from
-                ## server". Let's give the user a hint as to what that
-                ## might mean.
-                ##
-                if ($ERROR =~ m/^Cannot log in to DBI::ProxyServer: Unexpected EOF from server/) {
-                    $ERROR =    "Cannot log in via DBI::ProxyServer: Unexpected EOF from server (check user's MySQL credentials and privileges)";
-                }
-                if (not $NoAbort) {
-                    die $ERROR;
-                }
-                elsif (not $Quiet) {
-                    warn $ERROR;
-                }
+				$@ = $ERROR;
+				$self->_OperationFailed();
 
-                $@ = $ERROR;
-                $self->_OperationFailed();
+				undef $self;    # This fires the DESTROY, which sets $@.
+				$@ = $ERROR;    # Just in case the DESTROY did set $@.
+				return ();
+			}
+		}
+		else {
+			eval { $dbh->{AutoCommit} = 1 };
+			$dbh->{mysql_auto_reconnect} = 1;
+			$done = 1;    ## it worked!
+		}
+	} ## end while not done
 
-                undef $self; # This fires the DESTROY, which sets $@.
-                $@ = $ERROR; # Just in case the DESTROY did set $@.
-                return ();
-            }
-        }
-        else
-        {
-            eval { $dbh->{AutoCommit} = 1};
-            $dbh->{mysql_auto_reconnect} = 1;
-            $done = 1;  ## it worked!
-        }
-    } ## end while not done
+	##
+	## We got through....
+	##
+	$self->_OperationSuccessful();
+	$self->{DBH} = $dbh;
 
-    ##
-    ## We got through....
-    ##
-    $self->_OperationSuccessful();
-    $self->{DBH} = $dbh;
+	##
+	## Save this one if it's not to be unique.
+	##
+	if (not $Unique) {
+		$CurrentConnections{ $self->{UNIQUE_KEY} } = $self;
+	}
 
-    ##
-    ## Save this one if it's not to be unique.
-    ##
-    if (not $Unique)
-    {
-        $CurrentConnections{$self->{UNIQUE_KEY}} = $self;
-    }
-
-    return $self;
+	return $self;
 }
 
 *new = \&Connect;
@@ -879,15 +838,13 @@ know what you're doing. :-)
 
 =cut
 
-sub Dump
-{
-    my $self = shift;
+sub Dump {
+	my $self = shift;
 
-    ## Trivial dumping of key/value pairs.
-    for my $key (sort keys %$self)
-    {
-        print "$key: $self->{$key}\n" unless not defined $self->{$key};
-    }
+	## Trivial dumping of key/value pairs.
+	for my $key (sort keys %$self) {
+		print "$key: $self->{$key}\n" unless not defined $self->{$key};
+	}
 }
 
 =item Timeout()
@@ -902,19 +859,17 @@ query timeout value.
 
 =cut
 
-sub Timeout(;$)
-{
-    my $self = shift;
-    my $time = shift;
+sub Timeout(;$) {
+	my $self = shift;
+	my $time = shift;
 
-    if (defined $time)
-    {
-        $self->{QUERY_TIMEOUT} = $time;
-    }
+	if (defined $time) {
+		$self->{QUERY_TIMEOUT} = $time;
+	}
 
-    print "QUERY_TIMEOUT SET TO: $self->{QUERY_TIMEOUT}\n" if $self->{VERBOSE};
+	print "QUERY_TIMEOUT SET TO: $self->{QUERY_TIMEOUT}\n" if $self->{VERBOSE};
 
-    return $self->{QUERY_TIMEOUT};
+	return $self->{QUERY_TIMEOUT};
 }
 
 =item Disconnect()
@@ -926,48 +881,42 @@ error (with the error being returned in C<$@>).
 
 =cut
 
-sub Disconnect($)
-{
-    my $self = shift;
-    my $class = ref $self;
+sub Disconnect($) {
+	my $self  = shift;
+	my $class = ref $self;
 
-    if (not $self->{UNIQUE})
-    {
-        delete $CurrentConnections{$self->{UNIQUE_KEY}};
-    }
+	if (not $self->{UNIQUE}) {
+		delete $CurrentConnections{ $self->{UNIQUE_KEY} };
+	}
 
-    if (not $self->{DBH})
-    {
-        # Not an error, since this gets called as part of the destructor --
-        # might not be connected even though the object exists.
-        return ();
-    }
+	if (not $self->{DBH}) {
 
-    ## clean up a lingering sth if there is one...
+		# Not an error, since this gets called as part of the destructor --
+		# might not be connected even though the object exists.
+		return ();
+	}
 
-    if (defined $self->{RecentExecutedSth})
-    {
-        $self->{RecentExecutedSth}->finish();
-    }
+	## clean up a lingering sth if there is one...
 
-    if (not $self->{DBH}->disconnect())
-    {
-        $@ = "couldn't disconnect (or wasn't disconnected)";
-        $self->{DBH} = undef;
-        return ();
-    }
-    else
-    {
-        $@ = "";
-        $self->{DBH} = undef;
-        return 1;
-    }
+	if (defined $self->{RecentExecutedSth}) {
+		$self->{RecentExecutedSth}->finish();
+	}
+
+	if (not $self->{DBH}->disconnect()) {
+		$@ = "couldn't disconnect (or wasn't disconnected)";
+		$self->{DBH} = undef;
+		return ();
+	}
+	else {
+		$@ = "";
+		$self->{DBH} = undef;
+		return 1;
+	}
 }
 
-sub DESTROY($)
-{
-    my $self = shift;
-    $self->Disconnect();
+sub DESTROY($) {
+	my $self = shift;
+	$self->Disconnect();
 }
 
 =item Quote(@values)
@@ -979,28 +928,24 @@ items that are not defined.
 
 =cut
 
-sub Quote($@)
-{
-    my $self  = shift;
-    my $dbh   = $self->dbh();
-    my @ret;
+sub Quote($@) {
+	my $self = shift;
+	my $dbh  = $self->dbh();
+	my @ret;
 
-    for my $item (@_)
-    {
-        push @ret, $dbh->quote($item);
-    }
+	for my $item (@_) {
+		push @ret, $dbh->quote($item);
+	}
 
-    if (wantarray)
-    {
-        return @ret;
-    }
+	if (wantarray) {
+		return @ret;
+	}
 
-    if (@ret > 1)
-    {
-        return join ', ', @ret;
-    }
+	if (@ret > 1) {
+		return join ', ', @ret;
+	}
 
-    return $ret[0];
+	return $ret[0];
 }
 
 =item InList($field => @values)
@@ -1033,30 +978,29 @@ Just like C<InList>, but the values are not passed through C<Quote>.
 
 =cut
 
-sub InListUnquoted
-{
-    my $self   = shift;
-    my $field  = shift;
-    my @values = @_;
+sub InListUnquoted {
+	my $self   = shift;
+	my $field  = shift;
+	my @values = @_;
 
-    if (@values == 1) {
-        return "$field = $values[0]";
-    } elsif (@values > 1) {
-        return "$field IN (" . join(', ', @values) . ')';
-    } else {
-        return ();
-    }
+	if (@values == 1) {
+		return "$field = $values[0]";
+	}
+	elsif (@values > 1) {
+		return "$field IN (" . join(', ', @values) . ')';
+	}
+	else {
+		return ();
+	}
 }
 
-sub InList
-{
-    my $self   = shift;
-    my $field  = shift;
-    my @values = $self->Quote(@_);
+sub InList {
+	my $self   = shift;
+	my $field  = shift;
+	my @values = $self->Quote(@_);
 
-    return $self->InListUnquoted($field => @values);
+	return $self->InListUnquoted($field => @values);
 }
-
 
 =pod
 
@@ -1069,137 +1013,125 @@ relying on this.
 
 =cut
 
-sub ExecuteReturnCode($)
-{
-    my $self = shift;
-    return $self->{ExecuteReturnCode};
+sub ExecuteReturnCode($) {
+	my $self = shift;
+	return $self->{ExecuteReturnCode};
 }
 
 ## Private version of Execute() that deals with statement handles
 ## ONLY.  Given a statement handle, call execute and insulate it from
 ## common problems.
 
-sub _Execute()
-{
-    my $self      = shift;
-    my $statement = shift;
-    my @bind_vals = @_;
+sub _Execute() {
+	my $self      = shift;
+	my $statement = shift;
+	my @bind_vals = @_;
 
-    if (not ref $statement)
-    {
-        $@ = "non-reference passed to _Execute()";
-        warn "$@" unless $self->{QUIET};
-        return ();
-    }
+	if (not ref $statement) {
+		$@ = "non-reference passed to _Execute()";
+		warn "$@" unless $self->{QUIET};
+		return ();
+	}
 
-    my $sth = $statement->{DBI_STH};
+	my $sth = $statement->{DBI_STH};
 
-    print "_EXECUTE: $statement->{SQL}: ", join(" | ", @bind_vals), "\n" if $self->{VERBOSE};
+	print "_EXECUTE: $statement->{SQL}: ", join(" | ", @bind_vals), "\n"
+	  if $self->{VERBOSE};
 
-    ##
-    ## Execute the statement. Retry if requested.
-    ##
-    my $done = 0;
+	##
+	## Execute the statement. Retry if requested.
+	##
+	my $done = 0;
 
-    ## mysql_auto_reconnect (DBD::mysql >= 2.9) should always be in
-    ## lockstep with AutoCommit.
-    $self->{DBH}->{mysql_auto_reconnect} = $self->{DBH}->{AutoCommit};
+	## mysql_auto_reconnect (DBD::mysql >= 2.9) should always be in
+	## lockstep with AutoCommit.
+	$self->{DBH}->{mysql_auto_reconnect} = $self->{DBH}->{AutoCommit};
 
-    while (not $done)
-    {
-        local($SIG{PIPE}) = 'IGNORE';
+	while (not $done) {
+		local ($SIG{PIPE}) = 'IGNORE';
 
-        ## If the user wants a timeout, we need to set that up and do
-        ## it here.  This looks complex, but it's really a no-op
-        ## unless the user wants it.
-        ##
-        ## Notice that if a timeout is hit, the RetryWait() stuff
-        ## will never have a chance to run.  That's good, but we need
-        ## to make sure that users expect that.
+		## If the user wants a timeout, we need to set that up and do
+		## it here.  This looks complex, but it's really a no-op
+		## unless the user wants it.
+		##
+		## Notice that if a timeout is hit, the RetryWait() stuff
+		## will never have a chance to run.  That's good, but we need
+		## to make sure that users expect that.
 
-        if ($self->{QUERY_TIMEOUT})
-        {
-            eval
-            {
-                local $SIG{ALRM} = sub { die "alarm\n" };
+		if ($self->{QUERY_TIMEOUT}) {
+			eval {
+				local $SIG{ALRM} = sub { die "alarm\n" };
 
-                Time::HiRes::alarm($self->{QUERY_TIMEOUT});
-                $self->{ExecuteReturnCode} = $sth->execute(@bind_vals);
-                Time::HiRes::alarm(0);
-            };
-            if ($@ eq "alarm\n")
-            {
-                if (my $routine = $self->can("ExecuteTimeoutHook")) {
-                    $routine->($self, $statement);
-                }
+				Time::HiRes::alarm($self->{QUERY_TIMEOUT});
+				$self->{ExecuteReturnCode} = $sth->execute(@bind_vals);
+				Time::HiRes::alarm(0);
+			};
+			if ($@ eq "alarm\n") {
+				if (my $routine = $self->can("ExecuteTimeoutHook")) {
+					$routine->($self, $statement);
+				}
 
-                $@ = "query timeout ($self->{QUERY_TIMEOUT} sec passed)";
-                return ();
-            }
-        }
-        else
-        {
-            $self->{ExecuteReturnCode} = $sth->execute(@bind_vals);
-        }
+				$@ = "query timeout ($self->{QUERY_TIMEOUT} sec passed)";
+				return ();
+			}
+		}
+		else {
+			$self->{ExecuteReturnCode} = $sth->execute(@bind_vals);
+		}
 
-        ##
-        ## Otherwise, if it's an error that we know is "retryable" and
-        ## the user wants to retry (based on the RetryWait() call),
-        ## we'll try again.  But we will not retry if in the midst of a
-        ## transaction.
-        ##
-        if (not defined $self->{ExecuteReturnCode})
-        {
-            my $err = $self->{DBH}->errstr;
+		##
+		## Otherwise, if it's an error that we know is "retryable" and
+		## the user wants to retry (based on the RetryWait() call),
+		## we'll try again.  But we will not retry if in the midst of a
+		## transaction.
+		##
+		if (not defined $self->{ExecuteReturnCode}) {
+			my $err = $self->{DBH}->errstr;
 
-            if (not $self->{TrxRunning}
-                and
-                $self->{RETRY}
-                and (
-                     $err =~ m/Lost connection/
-                     or
-                     $err =~ m/server has gone away/
-                     or
-                     $err =~ m/Server shutdown in progress/
-                    ))
-            {
-                if ($self->RetryWait($err))
-                {
-                    next;
-                }
-            }
+			if (
+				    not $self->{TrxRunning}
+				and $self->{RETRY}
+				and (  $err =~ m/Lost connection/
+					or $err =~ m/server has gone away/
+					or $err =~ m/Server shutdown in progress/)
+			  )
+			{
+				if ($self->RetryWait($err)) {
+					next;
+				}
+			}
 
-            ##
-            ## It is really an error that we cannot (or should not)
-            ## retry, so spit it out if needed.
-            ##
-            $@ = "$err [in prepared statement]";
-            Carp::cluck "execute of prepared statement returned undef [$err]" if $self->{VERBOSE};
-            $self->_OperationFailed();
-            return ();
-        }
-        else
-        {
-            $done = 1;
-        }
-    }
+			##
+			## It is really an error that we cannot (or should not)
+			## retry, so spit it out if needed.
+			##
+			$@ = "$err [in prepared statement]";
+			Carp::cluck "execute of prepared statement returned undef [$err]"
+			  if $self->{VERBOSE};
+			$self->_OperationFailed();
+			return ();
+		}
+		else {
+			$done = 1;
+		}
+	}
 
-    ##
-    ## Got through.
-    ##
-    $self->_OperationSuccessful();
+	##
+	## Got through.
+	##
+	$self->_OperationSuccessful();
 
-    print "EXECUTE successful\n" if $self->{VERBOSE};
+	print "EXECUTE successful\n" if $self->{VERBOSE};
 
-    ##
-    ## Save this as the most-recent successful statement handle.
-    ##
-    $self->{RecentExecutedSth} = $sth;
+	##
+	## Save this as the most-recent successful statement handle.
+	##
+	$self->{RecentExecutedSth} = $sth;
 
-    ##
-    ## Execute worked -- return the statement handle.
-    ##
-    return $self->{ExecuteReturnCode}
+	##
+	## Execute worked -- return the statement handle.
+	##
+	return $self->{ExecuteReturnCode};
 }
 
 ## Public version of Execute that deals with SQL only and calls
@@ -1214,31 +1146,27 @@ C<Do()> is a synonym for C<Execute()>
 
 =cut
 
-sub Execute($$@)
-{
-    my $self      = shift;
-    my $sql       = shift;
-    my @bind_vals = @_;
+sub Execute($$@) {
+	my $self      = shift;
+	my $sql       = shift;
+	my @bind_vals = @_;
 
-    if (not $self->{DBH})
-    {
-        $@ = "not connected in Execute()";
-        Carp::croak "not connected to the database" unless $self->{QUIET};
-    }
+	if (not $self->{DBH}) {
+		$@ = "not connected in Execute()";
+		Carp::croak "not connected to the database" unless $self->{QUIET};
+	}
 
-    my $sth;
+	my $sth;
 
-    if (ref $sql)
-    {
-        $sth = $sql;
-    }
-    else
-    {
-        print "EXECUTE> $sql\n" if $self->{VERBOSE};
-        $sth = $self->Prepare($sql, 0+@bind_vals);
-    }
+	if (ref $sql) {
+		$sth = $sql;
+	}
+	else {
+		print "EXECUTE> $sql\n" if $self->{VERBOSE};
+		$sth = $self->Prepare($sql, 0 + @bind_vals);
+	}
 
-    return $sth->Execute(@bind_vals);
+	return $sth->Execute(@bind_vals);
 }
 
 ##
@@ -1271,48 +1199,45 @@ Note: prepare-caching is of no benefit until Mysql 4.1.
 
 =cut
 
-sub Prepare($$;$)
-{
-    my $self = shift;
-    my $sql  = shift;
-    my $has_bind = shift;
+sub Prepare($$;$) {
+	my $self     = shift;
+	my $sql      = shift;
+	my $has_bind = shift;
 
-    if (not $self->{DBH})
-    {
-        $@ = "not connected in Prepare()";
+	if (not $self->{DBH}) {
+		$@ = "not connected in Prepare()";
 
-        if (not $self->{QUIET})
-        {
-            carp scalar(localtime) . ": not connected to the database";
-        }
-        return ();
-    }
+		if (not $self->{QUIET}) {
+			carp scalar(localtime) . ": not connected to the database";
+		}
+		return ();
+	}
 
-    $@ = "";  ## ensure $@ is clear if not error.
+	$@ = "";    ## ensure $@ is clear if not error.
 
-    if ($self->{VERBOSE})
-    {
-        print "PREPARE> $sql\n";
-    }
+	if ($self->{VERBOSE}) {
+		print "PREPARE> $sql\n";
+	}
 
-    ## Automatically cache the prepare if there are bind args.
+	## Automatically cache the prepare if there are bind args.
 
-    my $dbi_sth = $has_bind ?
-          $self->{DBH}->prepare_cached($sql) :
-          $self->{DBH}->prepare($sql);
+	my $dbi_sth =
+	    $has_bind
+	  ? $self->{DBH}->prepare_cached($sql)
+	  : $self->{DBH}->prepare($sql);
 
-    ## Build the new statement handle object and bless it into
-    ## DBIx::DWIW::Statement.  Then return that object.
+	## Build the new statement handle object and bless it into
+	## DBIx::DWIW::Statement.  Then return that object.
 
-    $self->{RecentPreparedSth} = $dbi_sth;
+	$self->{RecentPreparedSth} = $dbi_sth;
 
-    my $sth = {
-                SQL     => $sql,      ## save the sql
-                DBI_STH => $dbi_sth,  ## the real statement handle
-                PARENT  => $self,     ## remember who created us
-              };
+	my $sth = {
+		SQL     => $sql,        ## save the sql
+		DBI_STH => $dbi_sth,    ## the real statement handle
+		PARENT  => $self,       ## remember who created us
+	};
 
-    return bless $sth, 'DBIx::DWIW::Statement';
+	return bless $sth, 'DBIx::DWIW::Statement';
 }
 
 =item RecentSth()
@@ -1322,10 +1247,9 @@ I<successfully executed> statement.
 
 =cut
 
-sub RecentSth($)
-{
-    my $self = shift;
-    return $self->{RecentExecutedSth};
+sub RecentSth($) {
+	my $self = shift;
+	return $self->{RecentExecutedSth};
 }
 
 =item RecentPreparedSth()
@@ -1336,10 +1260,9 @@ executed).
 
 =cut
 
-sub RecentPreparedSth($)
-{
-    my $self = shift;
-    return $self->{RecentPreparedSth};
+sub RecentPreparedSth($) {
+	my $self = shift;
+	return $self->{RecentPreparedSth};
 }
 
 =item InsertedId()
@@ -1351,19 +1274,16 @@ Synonyms: C<InsertID()>, C<LastInsertID()>, and C<LastInsertId()>
 
 =cut
 
-sub InsertedId($)
-{
-    my $self = shift;
-    if ($self->{RecentExecutedSth}
-        and
-        defined($self->{RecentExecutedSth}->{mysql_insertid}))
-    {
-        return $self->{RecentExecutedSth}->{mysql_insertid};
-    }
-    else
-    {
-        return ();
-    }
+sub InsertedId($) {
+	my $self = shift;
+	if ($self->{RecentExecutedSth}
+		and defined($self->{RecentExecutedSth}->{mysql_insertid}))
+	{
+		return $self->{RecentExecutedSth}->{mysql_insertid};
+	}
+	else {
+		return ();
+	}
 }
 
 ## Aliases for people who like Id or ID and Last or not Last. :-)
@@ -1381,17 +1301,14 @@ if there was an error.
 
 =cut
 
-sub RowsAffected($)
-{
-    my $self = shift;
-    if ($self->{RecentExecutedSth})
-    {
-        return $self->{RecentExecutedSth}->rows();
-    }
-    else
-    {
-        return ();
-    }
+sub RowsAffected($) {
+	my $self = shift;
+	if ($self->{RecentExecutedSth}) {
+		return $self->{RecentExecutedSth}->rows();
+	}
+	else {
+		return ();
+	}
 }
 
 =item RecentSql()
@@ -1400,17 +1317,14 @@ Returns the SQL of the most recently executed statement.
 
 =cut
 
-sub RecentSql($)
-{
-    my $self = shift;
-    if ($self->{RecentExecutedSth})
-    {
-        return $self->{RecentExecutedSth}->{Statement};
-    }
-    else
-    {
-        return ();
-    }
+sub RecentSql($) {
+	my $self = shift;
+	if ($self->{RecentExecutedSth}) {
+		return $self->{RecentExecutedSth}->{Statement};
+	}
+	else {
+		return ();
+	}
 }
 
 =item PreparedSql()
@@ -1420,17 +1334,14 @@ Returns the SQL of the most recently prepared statement.
 
 =cut
 
-sub PreparedSql($)
-{
-    my $self = shift;
-    if ($self->{RecentpreparedSth})
-    {
-        return $self->{RecentPreparedSth}->{SQL};
-    }
-    else
-    {
-        return ();
-    }
+sub PreparedSql($) {
+	my $self = shift;
+	if ($self->{RecentpreparedSth}) {
+		return $self->{RecentPreparedSth}->{SQL};
+	}
+	else {
+		return ();
+	}
 }
 
 =item Hash($sql)
@@ -1473,43 +1384,38 @@ now is it? :-)
 
 =cut
 
-sub Hash($$@)
-{
-    my $self      = shift;
-    my $sql       = shift || "";
-    my @bind_vals = @_;
+sub Hash($$@) {
+	my $self      = shift;
+	my $sql       = shift || "";
+	my @bind_vals = @_;
 
-    $@ = "";
+	$@ = "";
 
-    if (not $self->{DBH})
-    {
-        $@ = "not connected in Hash()";
-        return ();
-    }
+	if (not $self->{DBH}) {
+		$@ = "not connected in Hash()";
+		return ();
+	}
 
-    print "HASH: $sql\n" if ($self->{VERBOSE});
+	print "HASH: $sql\n" if ($self->{VERBOSE});
 
-    my $result = undef;
+	my $result = undef;
 
-    if ($sql eq "" or $self->Execute($sql, @bind_vals))
-    {
-        my $sth = $self->{RecentExecutedSth};
-        $result = $sth->fetchrow_hashref;
+	if ($sql eq "" or $self->Execute($sql, @bind_vals)) {
+		my $sth = $self->{RecentExecutedSth};
+		$result = $sth->fetchrow_hashref;
 
-        if (not $result)
-        {
-            if ($sth->err)
-            {
-                $@ = $sth->errstr . " [$sql] ($sth)";
-            }
-            else
-            {
-                $@ = "";
-            }
-            $sth->finish;   ## (else get error about statement handle still active)
-        }
-    }
-    return $result ? $result : ();
+		if (not $result) {
+			if ($sth->err) {
+				$@ = $sth->errstr . " [$sql] ($sth)";
+			}
+			else {
+				$@ = "";
+			}
+			$sth
+			  ->finish;  ## (else get error about statement handle still active)
+		}
+	}
+	return $result ? $result : ();
 }
 
 =item Hashes($sql)
@@ -1535,35 +1441,31 @@ false.
 
 =cut
 
-sub Hashes($$@)
-{
-    my $self      = shift;
-    my $sql       = shift;
-    my @bind_vals = @_;
+sub Hashes($$@) {
+	my $self      = shift;
+	my $sql       = shift;
+	my @bind_vals = @_;
 
-    $@ = "";
+	$@ = "";
 
-    if (not $self->{DBH})
-    {
-        $@ = "not connected in Hashes()";
-        return ();
-    }
+	if (not $self->{DBH}) {
+		$@ = "not connected in Hashes()";
+		return ();
+	}
 
-    print "HASHES: $sql\n" if $self->{VERBOSE};
+	print "HASHES: $sql\n" if $self->{VERBOSE};
 
-    my @records;
+	my @records;
 
-    if ($self->Execute($sql, @bind_vals))
-    {
-        my $sth = $self->{RecentExecutedSth};
+	if ($self->Execute($sql, @bind_vals)) {
+		my $sth = $self->{RecentExecutedSth};
 
-        while (my $ref = $sth->fetchrow_hashref)
-        {
-            push @records, $ref;
-        }
-    }
-    $self->{RecentExecutedSth}->finish;
-    return @records;
+		while (my $ref = $sth->fetchrow_hashref) {
+			push @records, $ref;
+		}
+	}
+	$self->{RecentExecutedSth}->finish;
+	return @records;
 }
 
 =item Array($sql)
@@ -1584,43 +1486,37 @@ records.
 
 =cut
 
-sub Array($$@)
-{
-    my $self      = shift;
-    my $sql       = shift;
-    my @bind_vals = @_;
+sub Array($$@) {
+	my $self      = shift;
+	my $sql       = shift;
+	my @bind_vals = @_;
 
-    $@ = "";
+	$@ = "";
 
-    if (not $self->{DBH})
-    {
-        $@ = "not connected Array()";
-        return ();
-    }
+	if (not $self->{DBH}) {
+		$@ = "not connected Array()";
+		return ();
+	}
 
-    print "ARRAY: $sql\n" if $self->{VERBOSE};
+	print "ARRAY: $sql\n" if $self->{VERBOSE};
 
-    my @result;
+	my @result;
 
-    if ($self->Execute($sql, @bind_vals))
-    {
-        my $sth = $self->{RecentExecutedSth};
-        @result = $sth->fetchrow_array;
+	if ($self->Execute($sql, @bind_vals)) {
+		my $sth = $self->{RecentExecutedSth};
+		@result = $sth->fetchrow_array;
 
-        if (not @result)
-        {
-            if ($sth->err)
-            {
-                $@ = $sth->errstr . " [$sql]";
-            }
-            else
-            {
-                $@ = "";
-            }
-        }
-        $sth->finish;   ## (else get error about statement handle still active)
-    }
-    return @result;
+		if (not @result) {
+			if ($sth->err) {
+				$@ = $sth->errstr . " [$sql]";
+			}
+			else {
+				$@ = "";
+			}
+		}
+		$sth->finish;    ## (else get error about statement handle still active)
+	}
+	return @result;
 }
 
 =pod
@@ -1648,34 +1544,30 @@ false.
 
 =cut
 
-sub Arrays($$@)
-{
-    my $self      = shift;
-    my $sql       = shift;
-    my @bind_vals = @_;
+sub Arrays($$@) {
+	my $self      = shift;
+	my $sql       = shift;
+	my @bind_vals = @_;
 
-    $@ = "";
+	$@ = "";
 
-    if (not $self->{DBH})
-    {
-        $@ = "not connected Arrays()";
-        return ();
-    }
+	if (not $self->{DBH}) {
+		$@ = "not connected Arrays()";
+		return ();
+	}
 
-    print "ARRAYS: $sql\n" if $self->{VERBOSE};
+	print "ARRAYS: $sql\n" if $self->{VERBOSE};
 
-    my @records;
+	my @records;
 
-    if ($self->Execute($sql, @bind_vals))
-    {
-        my $sth = $self->{RecentExecutedSth};
+	if ($self->Execute($sql, @bind_vals)) {
+		my $sth = $self->{RecentExecutedSth};
 
-        while (my $ref = $sth->fetchrow_arrayref)
-        {
-            push @records, [@{$ref}]; ## perldoc DBI to see why!
-        }
-    }
-    return @records;
+		while (my $ref = $sth->fetchrow_arrayref) {
+			push @records, [ @{$ref} ];    ## perldoc DBI to see why!
+		}
+	}
+	return @records;
 }
 
 =pod
@@ -1711,34 +1603,30 @@ But you never know.
 
 =cut
 
-sub FlatArray($$@)
-{
-    my $self      = shift;
-    my $sql       = shift;
-    my @bind_vals = @_;
+sub FlatArray($$@) {
+	my $self      = shift;
+	my $sql       = shift;
+	my @bind_vals = @_;
 
-    $@ = "";
+	$@ = "";
 
-    if (not $self->{DBH})
-    {
-        $@ = "not connected in FlatArray()";
-        return ();
-    }
+	if (not $self->{DBH}) {
+		$@ = "not connected in FlatArray()";
+		return ();
+	}
 
-    print "FLATARRAY: $sql\n" if $self->{VERBOSE};
+	print "FLATARRAY: $sql\n" if $self->{VERBOSE};
 
-    my @records;
+	my @records;
 
-    if ($self->Execute($sql, @bind_vals))
-    {
-        my $sth = $self->{RecentExecutedSth};
+	if ($self->Execute($sql, @bind_vals)) {
+		my $sth = $self->{RecentExecutedSth};
 
-        while (my $ref = $sth->fetchrow_arrayref)
-        {
-            push @records, @{$ref};
-        }
-    }
-    return @records;
+		while (my $ref = $sth->fetchrow_arrayref) {
+			push @records, @{$ref};
+		}
+	}
+	return @records;
 }
 
 =pod
@@ -1750,34 +1638,30 @@ of copying it.  This is a big win if you have very large arrays.
 
 =cut
 
-sub FlatArrayRef($$@)
-{
-    my $self      = shift;
-    my $sql       = shift;
-    my @bind_vals = @_;
+sub FlatArrayRef($$@) {
+	my $self      = shift;
+	my $sql       = shift;
+	my @bind_vals = @_;
 
-    $@ = "";
+	$@ = "";
 
-    if (not $self->{DBH})
-    {
-        $@ = "not connected in FlatArray()";
-        return ();
-    }
+	if (not $self->{DBH}) {
+		$@ = "not connected in FlatArray()";
+		return ();
+	}
 
-    print "FLATARRAY: $sql\n" if $self->{VERBOSE};
+	print "FLATARRAY: $sql\n" if $self->{VERBOSE};
 
-    my @records;
+	my @records;
 
-    if ($self->Execute($sql, @bind_vals))
-    {
-        my $sth = $self->{RecentExecutedSth};
+	if ($self->Execute($sql, @bind_vals)) {
+		my $sth = $self->{RecentExecutedSth};
 
-        while (my $ref = $sth->fetchrow_arrayref)
-        {
-            push @records, @{$ref};
-        }
-    }
-    return \@records;
+		while (my $ref = $sth->fetchrow_arrayref) {
+			push @records, @{$ref};
+		}
+	}
+	return \@records;
 }
 
 =pod
@@ -1798,36 +1682,32 @@ and a warning is issued.
 
 =cut
 
-sub Scalar()
-{
-    my $self = shift;
-    my $sql  = shift;
-    my @bind_vals = @_;
-    my $ret;
+sub Scalar() {
+	my $self      = shift;
+	my $sql       = shift;
+	my @bind_vals = @_;
+	my $ret;
 
-    $@ = "";
+	$@ = "";
 
-    if (not $self->{DBH})
-    {
-        $@ = "not connected in Scalar()";
-        return ();
-    }
+	if (not $self->{DBH}) {
+		$@ = "not connected in Scalar()";
+		return ();
+	}
 
-    print STDERR "SCALAR: $sql\n" if $self->{VERBOSE};
+	print STDERR "SCALAR: $sql\n" if $self->{VERBOSE};
 
-    if ($self->Execute($sql, @bind_vals))
-    {
-        my $sth = $self->{RecentExecutedSth};
+	if ($self->Execute($sql, @bind_vals)) {
+		my $sth = $self->{RecentExecutedSth};
 
-        if ($sth->rows() > 1 or $sth->{NUM_OF_FIELDS} > 1)
-        {
-          warn "$sql in DWIW::Scalar returned more than 1 row and/or column";
-        }
-        my $ref = $sth->fetchrow_arrayref;
-        $ret = ${$ref}[0];
-        $sth->finish;   ## (else get error about statement handle still active)
-    }
-    return $ret;
+		if ($sth->rows() > 1 or $sth->{NUM_OF_FIELDS} > 1) {
+			warn "$sql in DWIW::Scalar returned more than 1 row and/or column";
+		}
+		my $ref = $sth->fetchrow_arrayref;
+		$ret = ${$ref}[0];
+		$sth->finish;    ## (else get error about statement handle still active)
+	}
+	return $ret;
 }
 
 =pod
@@ -1852,48 +1732,41 @@ return a value similar to:
 
 =cut
 
-sub CSV()
-{
-    my $self = shift;
-    my $sql  = shift;
-    my $ret;
+sub CSV() {
+	my $self = shift;
+	my $sql  = shift;
+	my $ret;
 
-    $@ = "";
+	$@ = "";
 
-    if (not $self->{DBH})
-    {
-        $@ = "not connected in Scalar()";
-        return ();
-    }
+	if (not $self->{DBH}) {
+		$@ = "not connected in Scalar()";
+		return ();
+	}
 
-    print STDERR "SCALAR: $sql\n" if $self->{VERBOSE};
+	print STDERR "SCALAR: $sql\n" if $self->{VERBOSE};
 
-    if ($self->Execute($sql))
-    {
-        my $sth = $self->{RecentExecutedSth};
+	if ($self->Execute($sql)) {
+		my $sth = $self->{RecentExecutedSth};
 
-        while (my $ref = $sth->fetchrow_arrayref)
-        {
-            my $col = 0;
-            foreach (@{$ref})
-            {
-                if (defined($_))
-                {
-                  $ret .= ($sth->{mysql_type_name}[$col++] =~
-                           /(char|text|binary|blob)/) ?
-                             "\"$_\"," : "$_,";
-                }
-                else
-                {
-                  $ret .= "NULL,";
-                }
-            }
+		while (my $ref = $sth->fetchrow_arrayref) {
+			my $col = 0;
+			foreach (@{$ref}) {
+				if (defined($_)) {
+					$ret .=
+					  ($sth->{mysql_type_name}[ $col++ ] =~
+						  /(char|text|binary|blob)/) ? "\"$_\"," : "$_,";
+				}
+				else {
+					$ret .= "NULL,";
+				}
+			}
 
-            $ret =~ s/,$/\n/;
-        }
-    }
+			$ret =~ s/,$/\n/;
+		}
+	}
 
-    return $ret;
+	return $ret;
 }
 
 =pod
@@ -1909,17 +1782,15 @@ Returns the current value.
 
 =cut
 
-sub Verbose()
-{
-    my $self = shift;
-    my $val = $self->{VERBOSE};
+sub Verbose() {
+	my $self = shift;
+	my $val  = $self->{VERBOSE};
 
-    if (@_)
-    {
-        $self->{VERBOSE} = shift;
-    }
+	if (@_) {
+		$self->{VERBOSE} = shift;
+	}
 
-    return $val;
+	return $val;
 }
 
 =pod
@@ -1933,16 +1804,14 @@ Returns the current value.
 
 =cut
 
-sub Quiet()
-{
-    my $self = shift;
+sub Quiet() {
+	my $self = shift;
 
-    if (@_)
-    {
-        $self->{QUIET} = shift;
-    }
+	if (@_) {
+		$self->{QUIET} = shift;
+	}
 
-    return $self->{QUIET};
+	return $self->{QUIET};
 }
 
 =pod
@@ -1970,16 +1839,14 @@ C<Safe()> returns the current value.
 
 =cut
 
-sub Safe($;$)
-{
-    my $self = shift;
+sub Safe($;$) {
+	my $self = shift;
 
-    if (@_)
-    {
-        $self->{SAFE} = shift;
-    }
+	if (@_) {
+		$self->{SAFE} = shift;
+	}
 
-    return $self->{SAFE};
+	return $self->{SAFE};
 }
 
 =pod
@@ -1990,10 +1857,9 @@ Returns the real DBI database handle for the connection.
 
 =cut
 
-sub dbh($)
-{
-    my $self = shift;
-    return $self->{DBH};
+sub dbh($) {
+	my $self = shift;
+	return $self->{DBH};
 }
 
 =pod
@@ -2024,37 +1890,34 @@ back by the server and you'll get an error.
 
 =cut
 
-sub RetryWait($$)
-{
-    my $self  = shift;
-    my $error = shift;
+sub RetryWait($$) {
+	my $self  = shift;
+	my $error = shift;
 
-    if ($self->{RetryCount} > 9) # we failed too many times, die already. 
-    {
-        return 0;
-    }
+	if ($self->{RetryCount} > 9)    # we failed too many times, die already.
+	{
+		return 0;
+	}
 
-    ##
-    ## Immediately retry a few times, to pick up timed-out connections
-    ##
-    if ($self->{RetryCount}++ <= 2)
-    {
-        return 1;
-    }
-    elsif (not $self->{RetryStart})
-    {
-        $self->{RetryStart} = time;
-        $self->{RetryCommand} = $0;
-        $0 = "(waiting on db) $0";
-    }
+	##
+	## Immediately retry a few times, to pick up timed-out connections
+	##
+	if ($self->{RetryCount}++ <= 2) {
+		return 1;
+	}
+	elsif (not $self->{RetryStart}) {
+		$self->{RetryStart}   = time;
+		$self->{RetryCommand} = $0;
+		$0                    = "(waiting on db) $0";
+	}
 
-    if (not $self->{QUIET}) {
-        my $now = localtime;
-        warn "$now: db connection down ($error), retry in 30 seconds";
-    }
-    sleep 30;
+	if (not $self->{QUIET}) {
+		my $now = localtime;
+		warn "$now: db connection down ($error), retry in 30 seconds";
+	}
+	sleep 30;
 
-    return 1;
+	return 1;
 }
 
 ##
@@ -2063,23 +1926,21 @@ sub RetryWait($$)
 ## Called whenever a database operation has been successful, to reset the
 ## internal counters, and to send a "back up" message, if appropriate.
 ##
-sub _OperationSuccessful($)
-{
-    my $self = shift;
+sub _OperationSuccessful($) {
+	my $self = shift;
 
-    if (not $self->{QUIET} and $self->{RetryCount} > 1)
-    {
-        my $now   = localtime;
-        my $since = localtime($self->{RetryStart});
-        warn "$now: $self->{DESC} is back up (down since $since)\n";
-    }
+	if (not $self->{QUIET} and $self->{RetryCount} > 1) {
+		my $now   = localtime;
+		my $since = localtime($self->{RetryStart});
+		warn "$now: $self->{DESC} is back up (down since $since)\n";
+	}
 
-    if ($self->{RetryCommand}) {
-        $0 = $self->{RetryCommand};
-        undef $self->{RetryCommand};
-    }
-    $self->{RetryCount}  = 0;
-    undef $self->{RetryStart};
+	if ($self->{RetryCommand}) {
+		$0 = $self->{RetryCommand};
+		undef $self->{RetryCommand};
+	}
+	$self->{RetryCount} = 0;
+	undef $self->{RetryStart};
 }
 
 ##
@@ -2088,14 +1949,13 @@ sub _OperationSuccessful($)
 ## Called whenever a database operation has finally failed after all the
 ## retries that will be done for it.
 ##
-sub _OperationFailed($)
-{
-    my $self = shift;
-    $0 = $self->{RetryCommand} if $self->{RetryCommand};
+sub _OperationFailed($) {
+	my $self = shift;
+	$0 = $self->{RetryCommand} if $self->{RetryCommand};
 
-    $self->{RetryCount}  = 0;
-    $self->{RetryStart}  = undef;
-    $self->{RetryCommand}= undef;
+	$self->{RetryCount}   = 0;
+	$self->{RetryStart}   = undef;
+	$self->{RetryCommand} = undef;
 }
 
 =pod
@@ -2152,9 +2012,8 @@ By default, C<LocalConfig()> simply returns an empty list.
 
 =cut
 
-sub LocalConfig($$)
-{
-    return ();
+sub LocalConfig($$) {
+	return ();
 }
 
 =pod
@@ -2166,16 +2025,14 @@ C<LocalConfig()> to get it.
 
 =cut
 
-sub DefaultDB($)
-{
-    my ($class, $DB) = @_;
+sub DefaultDB($) {
+	my ($class, $DB) = @_;
 
-    if (my $DbConfig = $class->LocalConfig($DB))
-    {
-        return $DbConfig->{DB};
-    }
+	if (my $DbConfig = $class->LocalConfig($DB)) {
+		return $DbConfig->{DB};
+	}
 
-    return ();
+	return ();
 }
 
 =pod
@@ -2187,15 +2044,13 @@ C<LocalConfig()> to get it.
 
 =cut
 
-sub DefaultUser($$)
-{
-    my ($class, $DB) = @_;
+sub DefaultUser($$) {
+	my ($class, $DB) = @_;
 
-    if (my $DbConfig = $class->LocalConfig($DB))
-    {
-        return $DbConfig->{User};
-    }
-    return ();
+	if (my $DbConfig = $class->LocalConfig($DB)) {
+		return $DbConfig->{User};
+	}
+	return ();
 }
 
 =pod
@@ -2207,17 +2062,14 @@ Calls C<LocalConfig()> to get it.
 
 =cut
 
-sub DefaultPass($$)
-{
-    my ($class, $DB, $User) = @_;
-    if (my $DbConfig = $class->LocalConfig($DB))
-    {
-        if (defined $DbConfig->{Pass})
-        {
-            return $DbConfig->{Pass};
-        }
-    }
-    return ();
+sub DefaultPass($$) {
+	my ($class, $DB, $User) = @_;
+	if (my $DbConfig = $class->LocalConfig($DB)) {
+		if (defined $DbConfig->{Pass}) {
+			return $DbConfig->{Pass};
+		}
+	}
+	return ();
 }
 
 =pod
@@ -2229,17 +2081,14 @@ C<LocalConfig()> to get it.
 
 =cut
 
-sub DefaultHost($$)
-{
-    my ($class, $DB) = @_;
-    if (my $DbConfig = $class->LocalConfig($DB))
-    {
-        if ($DbConfig->{Host})
-        {
-                return $DbConfig->{Host};
-        }
-    }
-    return ();
+sub DefaultHost($$) {
+	my ($class, $DB) = @_;
+	if (my $DbConfig = $class->LocalConfig($DB)) {
+		if ($DbConfig->{Host}) {
+			return $DbConfig->{Host};
+		}
+	}
+	return ();
 }
 
 =pod
@@ -2251,24 +2100,19 @@ C<LocalConfig()> to get it.
 
 =cut
 
-sub DefaultPort($$)
-{
-    my ($class, $DB) = @_;
-    if (my $DbConfig = $class->LocalConfig($DB))
-    {
-        if ($DbConfig->{Port})
-        {
-            if ($DbConfig->{Host} eq hostname)
-            {
-                return (); #use local connection
-            }
-            else
-            {
-                return $DbConfig->{Host};
-            }
-        }
-    }
-    return ();
+sub DefaultPort($$) {
+	my ($class, $DB) = @_;
+	if (my $DbConfig = $class->LocalConfig($DB)) {
+		if ($DbConfig->{Port}) {
+			if ($DbConfig->{Host} eq hostname) {
+				return ();    #use local connection
+			}
+			else {
+				return $DbConfig->{Host};
+			}
+		}
+	}
+	return ();
 }
 
 =pod
@@ -2283,46 +2127,40 @@ Begin a new transaction, optionally naming it.
 
 =cut
 
-sub Begin
-{
-    my $self = shift;
-    my $name = shift;
+sub Begin {
+	my $self = shift;
+	my $name = shift;
 
-    ## if one is already running, just increment count if we need to
-    if ($self->{TrxRunning})
-    {
-        print "Begin() called with running transaction - " if $self->{VERBOSE};
-        if ($self->{BeginCount} and not defined $name)
-        {
-            print "$self->{BeginCount}\n" if $self->{VERBOSE};
-            $self->{BeginCount}++;
-        }
-        else
-        {
-            print "$self->{TrxName}\n" if $self->{VERBOSE};
-        }
+	## if one is already running, just increment count if we need to
+	if ($self->{TrxRunning}) {
+		print "Begin() called with running transaction - " if $self->{VERBOSE};
+		if ($self->{BeginCount} and not defined $name) {
+			print "$self->{BeginCount}\n" if $self->{VERBOSE};
+			$self->{BeginCount}++;
+		}
+		else {
+			print "$self->{TrxName}\n" if $self->{VERBOSE};
+		}
 
-        return 1;
-    }
+		return 1;
+	}
 
-    print "Begin() starting new transaction - " if $self->{VERBOSE};
+	print "Begin() starting new transaction - " if $self->{VERBOSE};
 
-    ## it is either named or not.
-    if (defined $name)
-    {
-        $self->{TrxName} = $name;
-        print "$name\n" if $self->{VERBOSE};
-    }
-    else
-    {
-        $self->{BeginCount} = 1;
-        print "(auto-count)\n" if $self->{VERBOSE};
-    }
+	## it is either named or not.
+	if (defined $name) {
+		$self->{TrxName} = $name;
+		print "$name\n" if $self->{VERBOSE};
+	}
+	else {
+		$self->{BeginCount} = 1;
+		print "(auto-count)\n" if $self->{VERBOSE};
+	}
 
-    $self->{TrxRunning} = 1;
-    eval { $self->{DBH}->{AutoCommit} = 0 };
-    $self->{DBH}->{mysql_auto_reconnect} = 0;
-    return $self->{DBH}->begin_work;
+	$self->{TrxRunning} = 1;
+	eval { $self->{DBH}->{AutoCommit} = 0 };
+	$self->{DBH}->{mysql_auto_reconnect} = 0;
+	return $self->{DBH}->begin_work;
 }
 
 =pod
@@ -2333,103 +2171,92 @@ Commit the current transaction (or named transaction).
 
 =cut
 
-sub Commit
-{
-    my $self = shift;
-    my $name = shift;
+sub Commit {
+	my $self = shift;
+	my $name = shift;
 
-    ## if there is no transaction running now
-    if (not $self->{TrxRunning})
-    {
-        print "Commit() called without a transaction\n" if $self->{VERBOSE};
-        return 0;
-    }
+	## if there is no transaction running now
+	if (not $self->{TrxRunning}) {
+		print "Commit() called without a transaction\n" if $self->{VERBOSE};
+		return 0;
+	}
 
-    ## if the controlling transaction was auto-counting
-    if ($self->{BeginCount})
-    {
-        ## if this commit was named, skip it.
-        if (defined $name)
-        {
-            print "Commit() skipping named commit on auto-counting transaction"
-                if $self->{VERBOSE};
-            return 0;
-        }
+	## if the controlling transaction was auto-counting
+	if ($self->{BeginCount}) {
+		## if this commit was named, skip it.
+		if (defined $name) {
+			print "Commit() skipping named commit on auto-counting transaction"
+			  if $self->{VERBOSE};
+			return 0;
+		}
 
-        ## decrement
-        $self->{BeginCount}--;
+		## decrement
+		$self->{BeginCount}--;
 
-        ## need to commit
-        if ($self->{BeginCount} == 0)
-        {
-            print "Commit()ing auto-counting transaction\n" if $self->{VERBOSE};
-            my $rc = $self->{DBH}->commit;
-            $self->{TrxRunning} = 0;
-            eval { $self->{DBH}->{AutoCommit} = 1; };
-            $self->{DBH}->{mysql_auto_reconnect} = 1;
-            $self->{BeginCount} = 0;
-            $self->{TrxName}    = undef;   ## just in case
-            return $rc;
-        }
-        elsif ($self->{BeginCount} > 0)
-        {
-            print "Commit() decremented BeginCount\n" if $self->{VERBOSE};
-            return 0;
-        }
-        else
-        {
-            print "Commit() is confused -- BeginCount went negative!\n"
-                if $self->{VERBOSE};
-            $@ = "Commit() is confused.  BeginCount went negative!";
-            return ();
-        }
+		## need to commit
+		if ($self->{BeginCount} == 0) {
+			print "Commit()ing auto-counting transaction\n" if $self->{VERBOSE};
+			my $rc = $self->{DBH}->commit;
+			$self->{TrxRunning} = 0;
+			eval { $self->{DBH}->{AutoCommit} = 1; };
+			$self->{DBH}->{mysql_auto_reconnect} = 1;
+			$self->{BeginCount}                  = 0;
+			$self->{TrxName}                     = undef;    ## just in case
+			return $rc;
+		}
+		elsif ($self->{BeginCount} > 0) {
+			print "Commit() decremented BeginCount\n" if $self->{VERBOSE};
+			return 0;
+		}
+		else {
+			print "Commit() is confused -- BeginCount went negative!\n"
+			  if $self->{VERBOSE};
+			$@ = "Commit() is confused.  BeginCount went negative!";
+			return ();
+		}
 
-    }
+	}
 
-    ## if the controlling transaction was named, deal with it.
+	## if the controlling transaction was named, deal with it.
 
-    if (defined $self->{TrxName})
-    {
-        ## if the commit was not named, do nothing.
-        if (not defined $name)
-        {
-            print "Commit() skipping unnamed commit on named begin\n"
-                if $self->{VERBOSE};
-            return 0;
-        }
+	if (defined $self->{TrxName}) {
+		## if the commit was not named, do nothing.
+		if (not defined $name) {
+			print "Commit() skipping unnamed commit on named begin\n"
+			  if $self->{VERBOSE};
+			return 0;
+		}
 
-        ## if the commit was named, the names need to match.
-        if ($name ne $self->{TrxName})
-        {
-            print "Commit() skipping named commit due to name mismatch\n"
-                if $self->{VERBOSE};
-            return 0;
-        }
+		## if the commit was named, the names need to match.
+		if ($name ne $self->{TrxName}) {
+			print "Commit() skipping named commit due to name mismatch\n"
+			  if $self->{VERBOSE};
+			return 0;
+		}
 
-        my $rc;
+		my $rc;
 
-        ## if they match, commit.
-        if ($name eq $self->{TrxName})
-        {
-            print "Commit()ing transaction - $self->{TrxName}\n"
-                if $self->{VERBOSE};
-            $rc = $self->{DBH}->commit;
-            $self->{TrxRunning} = 0;
-            eval { $self->{DBH}->{AutoCommit} = 1 };
-            $self->{DBH}->{mysql_auto_reconnect} = 1;
-            $self->{BeginCount} = 0;      ## just in case
-            $self->{TrxName}    = undef;
-            return $rc;
-        }
-    }
+		## if they match, commit.
+		if ($name eq $self->{TrxName}) {
+			print "Commit()ing transaction - $self->{TrxName}\n"
+			  if $self->{VERBOSE};
+			$rc = $self->{DBH}->commit;
+			$self->{TrxRunning} = 0;
+			eval { $self->{DBH}->{AutoCommit} = 1 };
+			$self->{DBH}->{mysql_auto_reconnect} = 1;
+			$self->{BeginCount}                  = 0;       ## just in case
+			$self->{TrxName}                     = undef;
+			return $rc;
+		}
+	}
 
-    ## otherwise, we're confused.  we should never end up here.
-    else
-    {
-        print "Commit() is confused -- something is wonky\n" if $self->{VERBOSE};
-        $@ = "Commit() is confused.  Internal state problem.";
-        return ();
-    }
+	## otherwise, we're confused.  we should never end up here.
+	else {
+		print "Commit() is confused -- something is wonky\n"
+		  if $self->{VERBOSE};
+		$@ = "Commit() is confused.  Internal state problem.";
+		return ();
+	}
 
 }
 
@@ -2441,25 +2268,23 @@ Rollback the current transaction.
 
 =cut
 
-sub Rollback
-{
-    my $self = shift;
+sub Rollback {
+	my $self = shift;
 
-    if (not $self->{TrxRunning})
-    {
-        print "Rollback() called without a transaction\n" if $self->{VERBOSE};
-        return;
-    }
+	if (not $self->{TrxRunning}) {
+		print "Rollback() called without a transaction\n" if $self->{VERBOSE};
+		return;
+	}
 
-    ## rollback via DBI and reset things
-    my $rc = $self->{DBH}->rollback;
-    $self->{TrxRunning} = 0;
-    eval { $self->{DBH}->{AutoCommit} = 1 };
-    $self->{DBH}->{mysql_auto_reconnect} = 1;
-    $self->{BeginCount} = 0;
-    $self->{TrxName}    = undef;
-    print "Rollback() transaction\n" if $self->{VERBOSE};
-    return $rc;
+	## rollback via DBI and reset things
+	my $rc = $self->{DBH}->rollback;
+	$self->{TrxRunning} = 0;
+	eval { $self->{DBH}->{AutoCommit} = 1 };
+	$self->{DBH}->{mysql_auto_reconnect} = 1;
+	$self->{BeginCount}                  = 0;
+	$self->{TrxName}                     = undef;
+	print "Rollback() transaction\n" if $self->{VERBOSE};
+	return $rc;
 }
 
 =pod
@@ -2492,31 +2317,26 @@ package DBIx::DWIW::Statement;
 
 use vars '$AUTOLOAD';
 
-sub AUTOLOAD
-{
-    my $self   = shift;
-    my $method = $AUTOLOAD;
+sub AUTOLOAD {
+	my $self   = shift;
+	my $method = $AUTOLOAD;
 
-    $method =~ s/.*:://;  ## strip the package name
+	$method =~ s/.*:://;    ## strip the package name
 
-    my $orig_method = $method;
+	my $orig_method = $method;
 
-    if ($self->{SAFE})
-    {
-        if (not $method =~ s/^dbi_//)
-        {
-            Carp::cluck("undefined or unsafe method ($orig_method) called in");
-        }
-    }
+	if ($self->{SAFE}) {
+		if (not $method =~ s/^dbi_//) {
+			Carp::cluck("undefined or unsafe method ($orig_method) called in");
+		}
+	}
 
-    if ($self->{DBI_STH} and $self->{DBI_STH}->can($method))
-    {
-        $self->{DBI_STH}->$method(@_);
-    }
-    else
-    {
-        Carp::cluck("undefined method ($orig_method) called");
-    }
+	if ($self->{DBI_STH} and $self->{DBI_STH}->can($method)) {
+		$self->{DBI_STH}->$method(@_);
+	}
+	else {
+		Carp::cluck("undefined method ($orig_method) called");
+	}
 }
 
 ## This looks funny, so I should probably explain what is going on.
@@ -2536,26 +2356,25 @@ for the appropriate placeholders in the SQL.
 
 =cut
 
-sub Execute(@)
-{
-    my $self      = shift;
-    my @bind_vals = @_;
-    my $db        = $self->{PARENT};
+sub Execute(@) {
+	my $self      = shift;
+	my @bind_vals = @_;
+	my $db        = $self->{PARENT};
 
-    return $db->_Execute($self, @bind_vals);
+	return $db->_Execute($self, @bind_vals);
 }
 
-sub DESTROY
-{
-#      my $self = shift;
+sub DESTROY {
 
-#      return unless defined $self;
-#      return unless ref($self);
+	#      my $self = shift;
 
-#      if ($self->{DBI_STH})
-#      {
-#          $self->{DBI_STH}->finish();
-#      }
+	#      return unless defined $self;
+	#      return unless ref($self);
+
+	#      if ($self->{DBI_STH})
+	#      {
+	#          $self->{DBI_STH}->finish();
+	#      }
 }
 
 1;
@@ -2608,3 +2427,7 @@ introduced DBIx::DWIW is available from:
   http://jeremy.zawodny.com/mysql/
 
 =cut
+
+__END__
+
+/* vim: set ts=4 sw=4 tw=72 noexpandtab :*/
