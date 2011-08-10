@@ -3,9 +3,9 @@ use ExtUtils::MakeMaker;
 # the contents of the Makefile that is written.
 WriteMakefile(
     'NAME'		=> 'DBIx::DWIW',
-    'VERSION_FROM'	=> 'DBIx/DWIW.pm', # finds $VERSION
+    'VERSION_FROM'	=> 'lib/DBIx/DWIW.pm', # finds $VERSION
     'PREREQ_PM'		=> { DBI => 1.12, 'Time::HiRes' => 0.01, 'DBD::mysql' => 2.00},
     ($] >= 5.005 ?    ## Add these new keywords supported since 5.005
-      (ABSTRACT_FROM => 'DBIx/DWIW.pm', # retrieve abstract from module
+      (ABSTRACT_FROM => 'lib/DBIx/DWIW.pm', # retrieve abstract from module
        AUTHOR     => 'Jeremy Zawodny <Jeremy@Zawodny.com>') : ()),
 );
