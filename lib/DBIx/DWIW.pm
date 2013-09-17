@@ -7,7 +7,7 @@ use Carp;
 use Sys::Hostname;    ## for reporting errors
 use Time::HiRes;      ## for fast timeouts
 
-our $VERSION = '0.51';
+our $VERSION = '0.52';
 our $SAFE    = 1;
 
 =head1 NAME
