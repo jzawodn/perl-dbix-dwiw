@@ -575,14 +575,6 @@ sub Connect($@) {
 		return ();
 	}
 
-	#      if (%Options)
-	#      {
-	#          my $keys = join(', ', keys %Options);
-	#          $@ = "bad parameters [$keys] to Connect()";
-	#          die $@ unless $NoAbort;
-	#          return ();
-	#      }
-
 	my $myhost = hostname();
 	my $desc;
 
