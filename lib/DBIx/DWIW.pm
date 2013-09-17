@@ -2310,16 +2310,6 @@ sub Execute(@) {
 }
 
 sub DESTROY {
-
-    #      my $self = shift;
-
-    #      return unless defined $self;
-    #      return unless ref($self);
-
-    #      if ($self->{DBI_STH})
-    #      {
-    #          $self->{DBI_STH}->finish();
-    #      }
 }
 
 1;
