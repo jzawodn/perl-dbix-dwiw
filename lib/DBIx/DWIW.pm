@@ -2427,4 +2427,4 @@ introduced DBIx::DWIW is available from:
 
 __END__
 
-/* vim: set ts=4 sw=4 tw=72 noexpandtab :*/
+/* vim: set ts=4 sw=4 tw=72 expandtab :*/
