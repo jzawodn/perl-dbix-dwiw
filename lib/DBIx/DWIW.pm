@@ -801,6 +801,11 @@ m/^Cannot log in to DBI::ProxyServer: Unexpected EOF from server/
 			eval { $dbh->{AutoCommit} = 1 };
 			$dbh->{mysql_auto_reconnect} = 1;
 			$done = 1;    ## it worked!
+
+            if (my $routine = $self->can("PostConnectHook")) {
+                $routine->($self, 1);
+            }
+
 		}
 	} ## end while not done
 
